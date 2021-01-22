@@ -54,8 +54,12 @@ export class MultiSpanProcessor implements SpanProcessor {
   }
 
   onEnd(span: ReadableSpan): void {
-    for (const spanProcessor of this._spanProcessors) {
-      spanProcessor.onEnd(span);
+    const shouldRejectSpan = this.filterSpan(span);
+
+    if (shouldRejectSpan === false) {
+      for (const spanProcessor of this._spanProcessors) {
+        spanProcessor.onEnd(span);
+      }
     }
   }
 
@@ -70,5 +74,30 @@ export class MultiSpanProcessor implements SpanProcessor {
         resolve();
       }, reject);
     });
+  }
+
+  filterSpan(span: ReadableSpan): boolean {
+    let isSpanIgnored = false;
+
+    const filterListEnv = String(process.env.FILTER_LIST);
+    const filterList = filterListEnv.split(' ');
+
+    Object.values(span).forEach(spanData => {
+      if (filterList.includes(spanData)) {
+        isSpanIgnored = true;
+        return;
+      } else if (typeof spanData === 'object') {
+        Object.values(spanData).forEach(element => {
+          if (typeof element === 'string') {
+            if (filterList.includes(element)) {
+              isSpanIgnored = true;
+              return;
+            }
+          }
+        });
+      }
+    });
+
+    return isSpanIgnored;
   }
 }
